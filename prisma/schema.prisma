@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./node_modules/@prisma/client"
+}
+
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String    @unique
+  password      String
+  phone         String?
+  role          Role      @default(PATIENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  appointments  Appointment[] @relation("PatientAppointments")
+  doctorProfile Doctor?
+}
+
+enum Role {
+  ADMIN
+  DOCTOR
+  PATIENT
+}
+
+model Doctor {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @unique @db.ObjectId
+  user            User      @relation(fields: [userId], references: [id])
+  specialty       String
+  bio             String?
+  education       Json?
+  experience      Json?
+  languages       String[]
+  consultationFee Float     // <- changed from Decimal to Float
+  rating          Float?
+  reviewCount     Int       @default(0)
+  appointments    Appointment[] @relation("DoctorAppointments")
+  availableSlots  TimeSlot[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+
+model Appointment {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  patientId     String    @db.ObjectId
+  patient       User      @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctorId      String    @db.ObjectId
+  doctor        Doctor    @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  date          DateTime
+  startTime     DateTime
+  endTime       DateTime
+  type          AppointmentType
+  status        AppointmentStatus @default(SCHEDULED)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum AppointmentType {
+  VIDEO
+  PHONE
+  IN_PERSON
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+model TimeSlot {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  doctorId      String    @db.ObjectId
+  doctor        Doctor    @relation(fields: [doctorId], references: [id])
+  day           Int       // 0-6 for Sunday-Saturday
+  startTime     String    // Format: "HH:MM" in 24-hour format
+  endTime       String    // Format: "HH:MM" in 24-hour format
+  isAvailable   Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Specialty {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String    @unique
+  description   String?
+  icon          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
