@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/db"
-import { AppointmentStatus, AppointmentType } from "@prisma/client";
-
+import type { AppointmentStatus, AppointmentType } from "@prisma/client"
 
 export async function GET(request: NextRequest) {
   try {
@@ -79,7 +78,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { patientId, doctorId, date, startTime, endTime, type, notes } = body
+    const { doctorId, date, startTime, endTime, type, notes, patientName, patientEmail, patientPhone } = body
+
+    // Check if we have a logged-in user or if this is a guest booking
+    let patientId = body.patientId
+
+    if (!patientId) {
+      // For guest bookings, create a temporary user
+      const tempUser = await prisma.user.create({
+        data: {
+          name: patientName,
+          email: patientEmail,
+          phone: patientPhone,
+          password: "guest-" + Math.random().toString(36).substring(2, 15), // Random password for guest
+          role: "PATIENT",
+        },
+      })
+      patientId = tempUser.id
+    }
 
     // Validate required fields
     if (!patientId || !doctorId || !date || !startTime || !endTime || !type) {
@@ -123,6 +139,9 @@ export async function POST(request: NextRequest) {
         endTime: new Date(endTime),
         type,
         notes,
+        patientName,
+        patientEmail,
+        patientPhone,
         status: "SCHEDULED",
       },
     })

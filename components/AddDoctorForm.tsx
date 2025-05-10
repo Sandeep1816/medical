@@ -7,7 +7,7 @@ type ExperienceItem = { position: string; institution: string; years: string }
 
 export default function AddDoctorForm() {
   const [doctorData, setDoctorData] = useState({
-    userId: "",
+    name: "",          // Added name field
     specialty: "",
     bio: "",
     languages: "",
@@ -66,10 +66,15 @@ export default function AddDoctorForm() {
     e.preventDefault()
 
     const payload = {
-      ...doctorData,
+      name: doctorData.name, // Include name in the payload
+      specialty: doctorData.specialty,
+      bio: doctorData.bio,
       education: JSON.stringify(education),
       experience: JSON.stringify(experience),
       languages: doctorData.languages.split(",").map((l) => l.trim()),
+      consultationFee: doctorData.consultationFee,
+      rating: doctorData.rating,
+      reviewCount: doctorData.reviewCount,
     }
 
     const res = await fetch("/api/doctors", {
@@ -88,10 +93,10 @@ export default function AddDoctorForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <label>User ID</label>
+        <label>Doctor's Name</label>
         <input
-          name="userId"
-          value={doctorData.userId}
+          name="name"
+          value={doctorData.name}
           onChange={handleDoctorChange}
           className="block w-full"
         />

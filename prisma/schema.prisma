@@ -6,12 +6,10 @@ generator client {
   output   = "./node_modules/@prisma/client"
 }
 
-
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
 }
-
 
 model User {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
@@ -41,15 +39,15 @@ model Doctor {
   education       Json?
   experience      Json?
   languages       String[]
-  consultationFee Float     // <- changed from Decimal to Float
+  consultationFee Float
   rating          Float?
   reviewCount     Int       @default(0)
+  imageUrl        String?   // Added imageUrl field
   appointments    Appointment[] @relation("DoctorAppointments")
   availableSlots  TimeSlot[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
-
 
 model Appointment {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
@@ -63,6 +61,9 @@ model Appointment {
   type          AppointmentType
   status        AppointmentStatus @default(SCHEDULED)
   notes         String?
+  patientName   String?   // Added for guest bookings
+  patientEmail  String?   // Added for guest bookings
+  patientPhone  String?   // Added for guest bookings
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }

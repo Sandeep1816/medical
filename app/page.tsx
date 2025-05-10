@@ -1,9 +1,52 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { DoctorCard } from "@/components/doctor-card"
 import { Button } from "@/components/ui/button"
 import { Search } from "@/components/search"
+import { Loader2 } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
+
+interface Doctor {
+  id: string
+  specialty: string
+  rating: number
+  reviewCount: number
+  imageUrl: string
+  user: {
+    name: string
+  }
+}
 
 export default function Home() {
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const response = await fetch("/api/doctors")
+        if (!response.ok) {
+          throw new Error("Failed to fetch doctors")
+        }
+        const data = await response.json()
+        setDoctors(data)
+      } catch (error) {
+        console.error("Error fetching doctors:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load doctors. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchDoctors()
+  }, [])
+
   return (
     <main className="container mx-auto px-4 py-8">
       <section className="py-12 text-center">
@@ -26,7 +69,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           <Link href="/doctors?specialty=cardiology" className="block">
-            <div className="bg-card hover:bg-accent transition-colors p-6 rounded-lg text-center">
+            <div className="bg-card hover:bg-accent transition-colors p-6 rounded-lg text-center shadow-sm hover:shadow-md">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -48,7 +91,7 @@ export default function Home() {
           </Link>
 
           <Link href="/doctors?specialty=neurology" className="block">
-            <div className="bg-card hover:bg-accent transition-colors p-6 rounded-lg text-center">
+            <div className="bg-card hover:bg-accent transition-colors p-6 rounded-lg text-center shadow-sm hover:shadow-md">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -70,7 +113,7 @@ export default function Home() {
           </Link>
 
           <Link href="/doctors?specialty=orthopedics" className="block">
-            <div className="bg-card hover:bg-accent transition-colors p-6 rounded-lg text-center">
+            <div className="bg-card hover:bg-accent transition-colors p-6 rounded-lg text-center shadow-sm hover:shadow-md">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -92,7 +135,7 @@ export default function Home() {
           </Link>
 
           <Link href="/doctors?specialty=dermatology" className="block">
-            <div className="bg-card hover:bg-accent transition-colors p-6 rounded-lg text-center">
+            <div className="bg-card hover:bg-accent transition-colors p-6 rounded-lg text-center shadow-sm hover:shadow-md">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -117,32 +160,35 @@ export default function Home() {
 
       <section className="py-8">
         <h2 className="text-2xl font-bold mb-6">Top Doctors</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <DoctorCard
-            id="1"
-            name="Dr. Sarah Johnson"
-            specialty="Cardiology"
-            rating={4.9}
-            reviewCount={124}
-            imageUrl="/placeholder.svg?height=300&width=300"
-          />
-          <DoctorCard
-            id="2"
-            name="Dr. Michael Chen"
-            specialty="Neurology"
-            rating={4.8}
-            reviewCount={98}
-            imageUrl="/placeholder.svg?height=300&width=300"
-          />
-          <DoctorCard
-            id="3"
-            name="Dr. Emily Rodriguez"
-            specialty="Orthopedics"
-            rating={4.7}
-            reviewCount={112}
-            imageUrl="/placeholder.svg?height=300&width=300"
-          />
-        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2">Loading doctors...</span>
+          </div>
+        ) : doctors.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {doctors.slice(0, 3).map((doctor) => (
+              <DoctorCard
+                key={doctor.id}
+                id={doctor.id}
+                name={doctor.user.name}
+                specialty={doctor.specialty}
+                rating={doctor.rating}
+                reviewCount={doctor.reviewCount}
+                imageUrl={doctor.imageUrl || "/placeholder.svg?height=300&width=300"}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No doctors found. Add doctors to get started.</p>
+            <Link href="/admin/add-doctor" className="mt-4 inline-block">
+              <Button>Add Doctor</Button>
+            </Link>
+          </div>
+        )}
+
         <div className="text-center mt-8">
           <Link href="/doctors">
             <Button>View All Doctors</Button>

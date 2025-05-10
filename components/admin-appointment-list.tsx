@@ -29,6 +29,9 @@ interface Appointment {
       name: string
     }
   }
+  patientName?: string
+  patientPhone?: string
+  patientEmail?: string
   type: "VIDEO" | "PHONE" | "IN_PERSON"
   date: string
   startTime: string
@@ -136,6 +139,18 @@ export function AdminAppointmentList({ status }: AdminAppointmentListProps) {
     return time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
   }
 
+  const getPatientName = (appointment: Appointment) => {
+    return appointment.patientName || appointment.patient?.name || "Unknown Patient"
+  }
+
+  const getPatientPhone = (appointment: Appointment) => {
+    return appointment.patientPhone || appointment.patient?.phone || "N/A"
+  }
+
+  const getPatientEmail = (appointment: Appointment) => {
+    return appointment.patientEmail || appointment.patient?.email || "N/A"
+  }
+
   const getAppointmentTypeIcon = (type: "VIDEO" | "PHONE" | "IN_PERSON") => {
     switch (type) {
       case "VIDEO":
@@ -151,25 +166,25 @@ export function AdminAppointmentList({ status }: AdminAppointmentListProps) {
     switch (status) {
       case "SCHEDULED":
         return (
-          <Badge className="bg-blue-50 text-blue-700 border-blue-200">
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
             Scheduled
           </Badge>
         )
       case "COMPLETED":
         return (
-          <Badge className="bg-green-50 text-green-700 border-green-200">
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
             Completed
           </Badge>
         )
       case "CANCELLED":
         return (
-          <Badge className="bg-red-50 text-red-700 border-red-200">
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
             Cancelled
           </Badge>
         )
       case "RESCHEDULED":
         return (
-          <Badge className="bg-amber-50 text-amber-700 border-amber-200">
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
             Rescheduled
           </Badge>
         )
@@ -205,7 +220,7 @@ export function AdminAppointmentList({ status }: AdminAppointmentListProps) {
               appointments.map((appointment) => (
                 <TableRow key={appointment.id}>
                   <TableCell className="font-medium">{appointment.id.substring(0, 8)}</TableCell>
-                  <TableCell>{appointment.patient.name}</TableCell>
+                  <TableCell>{getPatientName(appointment)}</TableCell>
                   <TableCell>{appointment.doctor.user.name}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -230,7 +245,7 @@ export function AdminAppointmentList({ status }: AdminAppointmentListProps) {
                     <Dialog>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button className="bg-blue-500 text-white" size="sm">
+                          <Button variant="ghost" size="sm">
                             <MoreHorizontal className="h-4 w-4" />
                             <span className="sr-only">Open menu</span>
                           </Button>
@@ -271,32 +286,74 @@ export function AdminAppointmentList({ status }: AdminAppointmentListProps) {
                               <DialogDescription>Complete information about the appointment.</DialogDescription>
                             </DialogHeader>
 
-                            <div className="grid gap-4">
-                              <div className="font-medium">Patient Details</div>
-                              <p>{selectedAppointment.patient.name}</p>
-                              <p>{selectedAppointment.patient.phone}</p>
-                              <p>{selectedAppointment.patient.email}</p>
+                            <div className="grid gap-4 py-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Appointment ID</h4>
+                                  <p className="font-medium">{selectedAppointment.id}</p>
+                                </div>
+                                <div>
+                                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Status</h4>
+                                  <p>{getStatusBadge(selectedAppointment.status)}</p>
+                                </div>
+                              </div>
 
-                              <div className="font-medium">Doctor</div>
-                              <p>{selectedAppointment.doctor.user.name}</p>
+                              <div>
+                                <h4 className="text-sm font-medium text-muted-foreground mb-1">Patient Information</h4>
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Name</p>
+                                    <p>{getPatientName(selectedAppointment)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Phone</p>
+                                    <p>{getPatientPhone(selectedAppointment)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Email</p>
+                                    <p>{getPatientEmail(selectedAppointment)}</p>
+                                  </div>
+                                </div>
+                              </div>
 
-                              <div className="font-medium">Appointment Type</div>
-                              <p>{selectedAppointment.type}</p>
-
-                              <div className="font-medium">Date & Time</div>
-                              <p>{formatDate(selectedAppointment.date)} at {formatTime(selectedAppointment.startTime)}</p>
-
-                              <div className="font-medium">Status</div>
-                              <p>{selectedAppointment.status}</p>
+                              <div>
+                                <h4 className="text-sm font-medium text-muted-foreground mb-1">Appointment Details</h4>
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Doctor</p>
+                                    <p>{selectedAppointment.doctor.user.name}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Type</p>
+                                    <div className="flex items-center gap-2">
+                                      {getAppointmentTypeIcon(selectedAppointment.type)}
+                                      <span className="capitalize">
+                                        {selectedAppointment.type.toLowerCase().replace("_", "-")}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Date</p>
+                                    <p>{formatDate(selectedAppointment.date)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Time</p>
+                                    <p>{formatTime(selectedAppointment.startTime)}</p>
+                                  </div>
+                                </div>
+                              </div>
 
                               {selectedAppointment.notes && (
-                                <div className="font-medium">Notes</div>
+                                <div>
+                                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Notes</h4>
+                                  <p className="text-sm">{selectedAppointment.notes}</p>
+                                </div>
                               )}
-                              <p>{selectedAppointment.notes}</p>
                             </div>
 
                             <DialogFooter>
-                              <Button onClick={() => setSelectedAppointment(null)}>Close</Button>
+                              <Button variant="outline">Edit</Button>
+                              <Button>Close</Button>
                             </DialogFooter>
                           </>
                         )}
@@ -307,7 +364,9 @@ export function AdminAppointmentList({ status }: AdminAppointmentListProps) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7}>No appointments available.</TableCell>
+                <TableCell colSpan={7} className="h-24 text-center">
+                  No appointments found.
+                </TableCell>
               </TableRow>
             )}
           </TableBody>

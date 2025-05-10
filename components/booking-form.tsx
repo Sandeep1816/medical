@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Phone, Video, User, Calendar, ArrowRight } from "lucide-react"
+import { Phone, Video, User, Calendar, ArrowRight, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
@@ -13,19 +13,29 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { BookingStepper } from "@/components/booking-stepper"
 import { toast } from "@/components/ui/use-toast"
+import { format, addMinutes, parse } from "date-fns"
 
 interface BookingFormProps {
   doctorId: string
   doctorName: string
 }
 
+interface TimeSlot {
+  startTime: string
+  endTime: string
+  isAvailable: boolean
+}
+
 export function BookingForm({ doctorId, doctorName }: BookingFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false)
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<TimeSlot[]>([])
+
   const [bookingData, setBookingData] = useState({
     appointmentType: "video",
-    date: "",
+    date: format(new Date(), "yyyy-MM-dd"),
     timeSlot: "",
     name: "",
     phone: "",
@@ -33,21 +43,102 @@ export function BookingForm({ doctorId, doctorName }: BookingFormProps) {
     notes: "",
   })
 
-  // Mock time slots - would come from API based on doctor availability
-  const availableTimeSlots = [
-    "09:00 AM",
-    "09:30 AM",
-    "10:00 AM",
-    "10:30 AM",
-    "11:00 AM",
-    "11:30 AM",
-    "02:00 PM",
-    "02:30 PM",
-    "03:00 PM",
-    "03:30 PM",
-    "04:00 PM",
-    "04:30 PM",
-  ]
+  // Fetch available time slots when date changes
+  useEffect(() => {
+    const fetchTimeSlots = async () => {
+      if (!bookingData.date) return
+
+      setIsLoadingSlots(true)
+      try {
+        // Get the day of week (0-6, where 0 is Sunday)
+        const selectedDate = new Date(bookingData.date)
+        const dayOfWeek = selectedDate.getDay()
+
+        // Fetch time slots for this doctor and day
+        const response = await fetch(`/api/time-slots?doctorId=${doctorId}&day=${dayOfWeek}`)
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch time slots")
+        }
+
+        const slots = await response.json()
+
+        // Generate 30-minute intervals from the time slots
+        const timeSlots: TimeSlot[] = []
+
+        slots.forEach((slot: any) => {
+          const [startHour, startMinute] = slot.startTime.split(":").map(Number)
+          const [endHour, endMinute] = slot.endTime.split(":").map(Number)
+
+          let currentTime = new Date()
+          currentTime.setHours(startHour, startMinute, 0, 0)
+
+          const endTime = new Date()
+          endTime.setHours(endHour, endMinute, 0, 0)
+
+          while (currentTime < endTime) {
+            const slotStartTime = format(currentTime, "HH:mm")
+            const slotEndTime = format(addMinutes(currentTime, 30), "HH:mm")
+
+            timeSlots.push({
+              startTime: slotStartTime,
+              endTime: slotEndTime,
+              isAvailable: true,
+            })
+
+            currentTime = addMinutes(currentTime, 30)
+          }
+        })
+
+        // Now check which slots are already booked
+        const bookingsResponse = await fetch(`/api/appointments?doctorId=${doctorId}&date=${bookingData.date}`)
+
+        if (bookingsResponse.ok) {
+          const bookings = await bookingsResponse.json()
+
+          // Mark booked slots as unavailable
+          bookings.forEach((booking: any) => {
+            const bookingStart = new Date(booking.startTime)
+            const bookingEnd = new Date(booking.endTime)
+
+            timeSlots.forEach((slot) => {
+              const slotDate = new Date(bookingData.date)
+              const [slotStartHour, slotStartMinute] = slot.startTime.split(":").map(Number)
+              const [slotEndHour, slotEndMinute] = slot.endTime.split(":").map(Number)
+
+              const slotStart = new Date(slotDate)
+              slotStart.setHours(slotStartHour, slotStartMinute, 0, 0)
+
+              const slotEnd = new Date(slotDate)
+              slotEnd.setHours(slotEndHour, slotEndMinute, 0, 0)
+
+              // Check if slot overlaps with booking
+              if (
+                (slotStart >= bookingStart && slotStart < bookingEnd) ||
+                (slotEnd > bookingStart && slotEnd <= bookingEnd) ||
+                (slotStart <= bookingStart && slotEnd >= bookingEnd)
+              ) {
+                slot.isAvailable = false
+              }
+            })
+          })
+        }
+
+        setAvailableTimeSlots(timeSlots)
+      } catch (error) {
+        console.error("Error fetching time slots:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load available time slots. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingSlots(false)
+      }
+    }
+
+    fetchTimeSlots()
+  }, [doctorId, bookingData.date])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -75,23 +166,26 @@ export function BookingForm({ doctorId, doctorName }: BookingFormProps) {
     setIsSubmitting(true)
 
     try {
-      // Convert time slot to 24-hour format for database
-      const [time, period] = bookingData.timeSlot.split(" ")
-      const [hour, minute] = time.split(":")
-      let hour24 = Number.parseInt(hour)
+      // Get the selected time slot
+      const selectedSlot = availableTimeSlots.find(
+        (slot) => `${slot.startTime} - ${slot.endTime}` === bookingData.timeSlot,
+      )
 
-      if (period === "PM" && hour24 < 12) {
-        hour24 += 12
-      } else if (period === "AM" && hour24 === 12) {
-        hour24 = 0
+      if (!selectedSlot) {
+        throw new Error("Invalid time slot selected")
       }
 
-      const startTimeStr = `${bookingData.date}T${hour24.toString().padStart(2, "0")}:${minute}:00`
-      const startTime = new Date(startTimeStr)
+      // Convert time slot to 24-hour format for database
+      const [startTime, endTime] = bookingData.timeSlot.split(" - ")
 
-      // End time is 30 minutes after start time
-      const endTime = new Date(startTime)
-      endTime.setMinutes(endTime.getMinutes() + 30)
+      // Create date objects for start and end times
+      const startDate = new Date(bookingData.date)
+      const [startHour, startMinute] = startTime.split(":").map(Number)
+      startDate.setHours(startHour, startMinute, 0, 0)
+
+      const endDate = new Date(bookingData.date)
+      const [endHour, endMinute] = endTime.split(":").map(Number)
+      endDate.setHours(endHour, endMinute, 0, 0)
 
       // Map appointment type to enum value
       const appointmentTypeMap: Record<string, string> = {
@@ -102,19 +196,15 @@ export function BookingForm({ doctorId, doctorName }: BookingFormProps) {
 
       // Create appointment data
       const appointmentData = {
-        patientId: "64f5a53e9d312a1d34e9fc68", // This would normally come from the authenticated user
         doctorId: doctorId,
         date: bookingData.date,
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString(),
         type: appointmentTypeMap[bookingData.appointmentType],
         notes: bookingData.notes,
-        // Additional patient info that would be stored in a real application
-        patientInfo: {
-          name: bookingData.name,
-          phone: bookingData.phone,
-          email: bookingData.email,
-        },
+        patientName: bookingData.name,
+        patientEmail: bookingData.email,
+        patientPhone: bookingData.phone,
       }
 
       // Send data to API
@@ -143,6 +233,12 @@ export function BookingForm({ doctorId, doctorName }: BookingFormProps) {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Format time slots for display
+  const formatTimeSlot = (slot: TimeSlot) => {
+    const startTime = parse(slot.startTime, "HH:mm", new Date())
+    return `${slot.startTime} - ${slot.endTime}`
   }
 
   return (
@@ -222,29 +318,48 @@ export function BookingForm({ doctorId, doctorName }: BookingFormProps) {
                     value={bookingData.date}
                     onChange={handleInputChange}
                     required
+                    min={format(new Date(), "yyyy-MM-dd")}
                   />
                 </div>
               </div>
             </div>
 
-            {bookingData.date && (
-              <div>
-                <h4 className="font-medium mb-3">Select Time Slot</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {availableTimeSlots.map((slot) => (
-                    <Button
-                      key={slot}
-                      type="button"
-                      variant={bookingData.timeSlot === slot ? "default" : "outline"}
-                      className="text-xs h-10"
-                      onClick={() => handleTimeSlotSelect(slot)}
-                    >
-                      {slot}
-                    </Button>
-                  ))}
+            <div>
+              <h4 className="font-medium mb-3">Select Time Slot</h4>
+              {isLoadingSlots ? (
+                <div className="flex justify-center items-center h-32">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <span className="ml-2">Loading available slots...</span>
                 </div>
-              </div>
-            )}
+              ) : availableTimeSlots.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {availableTimeSlots.map((slot, index) => {
+                    const timeSlotString = `${slot.startTime} - ${slot.endTime}`
+                    return (
+                      <Button
+                        key={index}
+                        type="button"
+                        variant={bookingData.timeSlot === timeSlotString ? "default" : "outline"}
+                        className={cn(
+                          "text-xs h-10 flex items-center justify-center",
+                          !slot.isAvailable && "opacity-50 cursor-not-allowed",
+                        )}
+                        onClick={() => slot.isAvailable && handleTimeSlotSelect(timeSlotString)}
+                        disabled={!slot.isAvailable}
+                      >
+                        <Clock className="mr-1 h-3 w-3" />
+                        {timeSlotString}
+                      </Button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center p-4 border rounded-md">
+                  <p className="text-muted-foreground">No available time slots for this date.</p>
+                  <p className="text-sm mt-1">Please select a different date.</p>
+                </div>
+              )}
+            </div>
 
             <Button
               type="button"
@@ -336,7 +451,7 @@ export function BookingForm({ doctorId, doctorName }: BookingFormProps) {
 
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Date:</span>
-                  <span className="font-medium">{bookingData.date}</span>
+                  <span className="font-medium">{format(new Date(bookingData.date), "MMMM d, yyyy")}</span>
                 </div>
 
                 <div className="flex justify-between">
